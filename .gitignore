@@ -1,0 +1,8 @@
+# maelstrom
+store
+
+# jetbrains
+.idea
+
+# executables
+echo
