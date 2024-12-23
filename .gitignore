@@ -8,3 +8,4 @@ store
 /echo
 /unique-ids
 /broadcast
+/multibroadcast

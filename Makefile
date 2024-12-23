@@ -9,6 +9,10 @@ broadcast: cmd/broadcast
 	go build ./$<
 	../maelstrom/maelstrom test -w broadcast --bin ./$@ --node-count 1 --time-limit 20 --rate 10
 
+multibroadcast: cmd/multibroadcast
+	go build ./$<
+	../maelstrom/maelstrom test -w broadcast --bin ./$@ --node-count 5 --time-limit 20 --rate 10
+
 clean:
 	rm -rf echo unique-ids broadcast
 
