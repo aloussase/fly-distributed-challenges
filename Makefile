@@ -13,7 +13,11 @@ multibroadcast: cmd/multibroadcast
 	go build ./$<
 	../maelstrom/maelstrom test -w broadcast --bin ./$@ --node-count 5 --time-limit 20 --rate 10
 
+fault-tolerant-multibroadcast: cmd/fault-tolerant-multibroadcast
+	go build ./$<
+	../maelstrom/maelstrom test -w broadcast --bin ./$@ --node-count 5 --time-limit 20 --rate 10 --nemesis partition
+
 clean:
-	rm -rf echo unique-ids broadcast
+	rm -rf echo unique-ids broadcast multibroadcast fault-tolerant-multibroadcast
 
 .PHONY: clean
