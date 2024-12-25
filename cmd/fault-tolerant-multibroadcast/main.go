@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 	"log"
 	"time"
@@ -25,11 +26,11 @@ func handleBroadcast(msg maelstrom.Message) error {
 	delete(body, "message")
 	body["type"] = "broadcast_ok"
 
-	go (func() {
-		for _, c := range neighbors {
+	for _, c := range neighbors {
+		go (func(c chan float64) {
 			c <- message
-		}
-	})()
+		})(c)
+	}
 
 	return node.Reply(msg, body)
 }
@@ -40,33 +41,18 @@ func handleBroadcastTo(nodeID string) {
 	payload := make(map[string]any, 2)
 	payload["type"] = "from_broadcast"
 
-	type response struct {
-		Type string `json:"type"`
-	}
-
-	retry := func(msg float64) {
-		time.Sleep(100 * time.Millisecond)
-		c <- msg
-	}
-
 	for {
 		message := <-c
 		payload["message"] = message
 
-		err := node.RPC(nodeID, payload, func(msg maelstrom.Message) error {
-			var response response
-			_ = json.Unmarshal(msg.Body, &response)
-
-			if response.Type != "from_broadcast_ok" {
-				log.Printf("node %s responded bad message: %s", nodeID, response.Type)
-				retry(message)
+		for {
+			var err error
+			if err = node.RPC(nodeID, payload, func(msg maelstrom.Message) error { return nil }); err == nil {
+				break
 			}
 
-			return nil
-		})
-
-		if err != nil {
-			retry(message)
+			fmt.Printf("error sending message to node %s: %s", nodeID, err.Error())
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 }
@@ -95,7 +81,7 @@ func handleRead(msg maelstrom.Message) error {
 
 func handleTopology(msg maelstrom.Message) error {
 	for _, id := range node.NodeIDs() {
-		neighbors[id] = make(chan float64, 100)
+		neighbors[id] = make(chan float64)
 		go handleBroadcastTo(id)
 	}
 

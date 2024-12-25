@@ -9,3 +9,4 @@ store
 /unique-ids
 /broadcast
 /multibroadcast
+/fault-tolerant-multibroadcast
