@@ -1,5 +1,7 @@
+TASKS := echo unique-ids broadcast multibroadcast fault-tolerant-multibroadcast efficient-broadcast-i
+
 all:
-	@echo Tasks: unique-ids, broadcast
+	@echo Tasks: $(TASKS)
 
 unique-ids: cmd/unique-ids
 	go build ./$<
@@ -17,7 +19,12 @@ fault-tolerant-multibroadcast: cmd/fault-tolerant-multibroadcast
 	go build ./$<
 	../maelstrom/maelstrom test -w broadcast --bin ./$@ --node-count 5 --time-limit 20 --rate 10 --nemesis partition
 
+efficient-broadcast-i: cmd/efficient-broadcast-i
+	go build ./$<
+	../maelstrom/maelstrom test -w broadcast --bin ./$@ --node-count 25 --time-limit 20 --rate 100 --latency 100
+
+
 clean:
-	rm -rf echo unique-ids broadcast multibroadcast fault-tolerant-multibroadcast
+	rm -rf $(TASKS)
 
 .PHONY: clean

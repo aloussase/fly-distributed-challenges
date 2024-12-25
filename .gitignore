@@ -10,3 +10,4 @@ store
 /broadcast
 /multibroadcast
 /fault-tolerant-multibroadcast
+/efficient-broadcast-i
