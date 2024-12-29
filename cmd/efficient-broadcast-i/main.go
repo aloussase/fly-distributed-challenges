@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 	"log"
 	"sync"
@@ -14,6 +15,7 @@ var (
 	messages      []float64
 	topologyReady sync.WaitGroup
 	seen          map[float64]struct{}
+	lock          sync.Mutex
 )
 
 type BroadcastMessage struct {
@@ -27,24 +29,23 @@ func handleBroadcast(msg maelstrom.Message) error {
 		return err
 	}
 
-	if _, ok := seen[body.Message]; ok {
+	lock.Lock()
+	defer lock.Unlock()
+
+	message := body.Message
+	if _, ok := seen[message]; ok {
 		return nil
 	}
 
-	seen[body.Message] = struct{}{}
-	messages = append(messages, body.Message)
+	seen[message] = struct{}{}
+	messages = append(messages, message)
 
 	topologyReady.Wait()
 	for _, c := range neighbors {
-		go (func(c chan float64, msg float64) {
-			c <- msg
-		})(c, body.Message)
+		c <- message
 	}
 
-	response := make(map[string]any)
-	response["type"] = "broadcast_ok"
-
-	return node.Reply(msg, response)
+	return node.Reply(msg, map[string]any{"type": "broadcast_ok"})
 }
 
 func handleBroadcastTo(nodeID string, c chan float64) {
@@ -55,7 +56,11 @@ func handleBroadcastTo(nodeID string, c chan float64) {
 	}
 
 	for {
-		message := <-c
+		message, ok := <-c
+		if !ok {
+			fmt.Printf("neighbors channel closed")
+			return
+		}
 
 		payload := BroadcastMessage{
 			Type:    messageType,
@@ -68,19 +73,22 @@ func handleBroadcastTo(nodeID string, c chan float64) {
 				break
 			}
 
+			fmt.Printf("got error while sending RPC request: %s\n", err.Error())
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
 }
 
 func handleRead(msg maelstrom.Message) error {
-	body := make(map[string]any, 2)
-	body["type"] = "read_ok"
-	body["messages"] = messages
-	return node.Reply(msg, body)
+	return node.Reply(msg, map[string]any{
+		"type":     "read_ok",
+		"messages": messages,
+	})
 }
 
 func handleTopology(msg maelstrom.Message) error {
+	defer topologyReady.Done()
+
 	type topologyMsg struct {
 		Topology map[string][]string `json:"topology"`
 	}
@@ -88,22 +96,20 @@ func handleTopology(msg maelstrom.Message) error {
 	var topology topologyMsg
 	_ = json.Unmarshal(msg.Body, &topology)
 
+	lock.Lock()
+	defer lock.Unlock()
+
 	for _, id := range topology.Topology[node.ID()] {
 		c := make(chan float64)
 		neighbors = append(neighbors, c)
 		go handleBroadcastTo(id, c)
 	}
 
-	topologyReady.Done()
-
-	response := make(map[string]any, 1)
-	response["type"] = "topology_ok"
-
-	return node.Reply(msg, response)
+	return node.Reply(msg, map[string]any{"type": "topology_ok"})
 }
 
 func main() {
-	messages = make([]float64, 0, 10)
+	messages = make([]float64, 0)
 	neighbors = make([]chan float64, 0)
 	seen = make(map[float64]struct{})
 	topologyReady.Add(1)
